@@ -122,7 +122,7 @@ HieroClient client = HieroClient.createClient(networkSettings, operatorAccount);
 The following example signs a transfer with a key held in a cloud KMS. For an ECDSA secp256k1 key,
 the `TransactionSigner` implementation computes `keccak256(body.bytes)` locally, has the KMS sign
 that digest, and converts the DER signature it gets back into the 64-byte low-`s` form (see
-*External signing*):
+_External signing_):
 
 ```
 HieroClient client = ...;
@@ -146,11 +146,11 @@ packed.submit(client);
 Tests run against a local [solo](https://solo.hiero.org) network and are described as
 language-agnostic Given / When / Then scenarios. See
 [`guidelines/testing-guideline.md`](../../guidelines/testing-guideline.md) for the test
-platform, the solo lifecycle, and the shared *"`HieroClient` connected to a solo network with a
-funded operator account"* fixture referenced below.
+platform, the solo lifecycle, and the shared _"`HieroClient` connected to a solo network with a
+funded operator account"_ fixture referenced below.
 
-The scenarios use a *test signer*: a `TransactionSigner` over an in-memory key that follows the
-*External signing* contract and records every `NodeBody` it is asked to sign. It stands in for a
+The scenarios use a _test signer_: a `TransactionSigner` over an in-memory key that follows the
+_External signing_ contract and records every `NodeBody` it is asked to sign. It stands in for a
 KMS or HSM, which the solo platform does not provide.
 
 ### `client/external-signer-signs-as-payer`
@@ -174,17 +174,15 @@ KMS or HSM, which the solo platform does not provide.
 ## Questions & Comments
 
 - [@Jexsie](https://github.com/Jexsie): The `TransactionSigner` contract above was validated with a
-  PoC that implements this API on top of the V2 JavaScript SDK, with AWS KMS and HashiCorp Vault
+  lib that implements this API on top of the V2 JavaScript SDK, with AWS KMS and HashiCorp Vault
   signers (ported from [hiero-remote-signer](https://github.com/Jexsie/hiero-remote-signer)). Open
   points it surfaced:
   - **`Account` still requires a `PrivateKey`.** An operator whose key is in a KMS has no
-    `PrivateKey`, so callers need both an `Account` and a separate `transactionSigner`. The PoC
+    `PrivateKey`, so callers need both an `Account` and a separate `transactionSigner`. The package
     models `Account { accountId, signer: TransactionSigner }`, where an in-memory key is one
     `TransactionSigner` implementation. That removes `HieroClient.transactionSigner`, the
     three-argument `createClient`, and the `sign(payerId, signer, nodes)` /
-    `signForBatch(payerId, signer, batchKey)` tiers. Same problem as
-    [missing-features.md §6.1](../../missing-features.md); probably needs an ADR, since it also
-    touches ADR-0001 and ADR-0002.
+    `signForBatch(payerId, signer, batchKey)` tiers.
   - **Signing cost scales with the number of target nodes.** A remote signer makes one billed,
     rate-limited, audit-logged backend call per target node and key. Should `HieroClient` own node
     selection (callers of `pack(payer, nodes)` currently have no API to obtain `nodes`), and should
