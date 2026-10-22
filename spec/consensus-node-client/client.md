@@ -28,6 +28,8 @@ Every `TransactionSigner` implementation must follow this contract:
   order; DER-encoded or high-`s` signatures returned by a backend must be converted by the signer.
 - **Identity.** `NodeSignature.node` equals `body.node`, and `NodeSignature.publicKey` equals the
   signer's `publicKey`.
+- **Concurrency.** The SDK may call `signTransaction` concurrently for the bodies of different
+  target nodes (`@@threadSafe`).
 
 ## API Schema
 
@@ -63,7 +65,9 @@ abstraction TransactionSigner {
 
   @@immutable publicKey: PublicKey // the public key matching every signature this signer produces
 
-  // Signs the TransactionBody addressed to body.node. Called once per target node.
+  // Signs the TransactionBody addressed to body.node. Called once per target node, possibly
+  // concurrently for different nodes.
+  @@threadSafe
   @@async NodeSignature signTransaction(body: NodeBody)
 }
 
@@ -115,19 +119,57 @@ NetworkSetting networkSettings = ...;
 HieroClient client = HieroClient.createClient(networkSettings, operatorAccount);
 ```
 
-The following example shows a `TransactionSigner` backed by an ECDSA secp256k1 key in a cloud KMS:
+The following example signs a transfer with a key held in a cloud KMS. For an ECDSA secp256k1 key,
+the `TransactionSigner` implementation computes `keccak256(body.bytes)` locally, has the KMS sign
+that digest, and converts the DER signature it gets back into the 64-byte low-`s` form (see
+*External signing*):
 
 ```
-KmsSigner implements TransactionSigner {
-    publicKey = createPublicKey(SPKI_WITH_DER, kms.getPublicKey(keyId))  // fetched once
+HieroClient client = ...;
+TransactionSigner kmsSigner = ...;           // wraps an ECDSA secp256k1 key in a cloud KMS
+AccountId treasury = ...;                    // an account whose key is kmsSigner.publicKey
+AccountId recipient = ...;
+list<AccountId> nodes = ...;                 // two target nodes
 
-    @@async NodeSignature signTransaction(body: NodeBody) {
-        bytes digest = keccak256(body.bytes)                 // KMS cannot hash with Keccak-256
-        bytes der = await kms.sign(keyId, digest, DIGEST)    // one KMS call per target node
-        return new NodeSignature(body.node, publicKey, toCompactLowS(der))
-    }
-}
+PackedTransaction<...> packed = new TransferTransaction()
+    .hbarTransfers([
+        new HbarTransfer(treasury, NativeToken.of(-10, HBAR_UNIT)),
+        new HbarTransfer(recipient, NativeToken.of(+10, HBAR_UNIT)),
+    ])
+    .sign(treasury, kmsSigner, nodes);       // two KMS calls: one per target node
+
+packed.submit(client);
 ```
+
+## Testing
+
+Tests run against a local [solo](https://solo.hiero.org) network and are described as
+language-agnostic Given / When / Then scenarios. See
+[`guidelines/testing-guideline.md`](../../guidelines/testing-guideline.md) for the test
+platform, the solo lifecycle, and the shared *"`HieroClient` connected to a solo network with a
+funded operator account"* fixture referenced below.
+
+The scenarios use a *test signer*: a `TransactionSigner` over an in-memory key that follows the
+*External signing* contract and records every `NodeBody` it is asked to sign. It stands in for a
+KMS or HSM, which the solo platform does not provide.
+
+### `client/external-signer-signs-as-payer`
+
+- **Given** a `HieroClient` connected to a solo network with a funded operator account, a test
+  signer over a new Ed25519 key, and an account created by the operator with the test signer's
+  `publicKey` as its key and a balance of 1 HBAR.
+- **When** a `TransferTransaction` moving 1 tinybar from that account to the operator's account id
+  is signed with `sign(accountId, testSigner, nodes)` for two target nodes and submitted.
+- **Then** the receipt status is `SUCCESS`, the test signer was called exactly once per target
+  node, and the recorded bodies equal the `signableBodies()` of the packed transaction.
+
+### `client/external-ecdsa-signer-signs-as-payer`
+
+- **Given** the same setup as `client/external-signer-signs-as-payer`, but with a test signer over
+  a new ECDSA secp256k1 key.
+- **When** the same transfer is signed with `sign(accountId, testSigner, nodes)` and submitted.
+- **Then** the receipt status is `SUCCESS`, and every `NodeSignature` produced by the test signer
+  is 64 bytes and verifies with `publicKey.verify(body.bytes, signature)` against its node's body.
 
 ## Questions & Comments
 

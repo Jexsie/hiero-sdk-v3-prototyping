@@ -371,6 +371,37 @@ PackedTransaction<...> signed = resumed.sign(signatures);
 signed.submit(client);
 ```
 
+## Testing
+
+Tests run against a local [solo](https://solo.hiero.org) network and are described as
+language-agnostic Given / When / Then scenarios. See
+[`guidelines/testing-guideline.md`](../../guidelines/testing-guideline.md) for the test
+platform, the solo lifecycle, and the shared *"`HieroClient` connected to a solo network with a
+funded operator account"* fixture referenced below. The *test signer* is the in-memory
+`TransactionSigner` described in the `## Testing` section of [`client.md`](client.md).
+
+### `transactions/signer-signatures-survive-serialization`
+
+- **Given** a `HieroClient` connected to a solo network with a funded operator account, a test
+  signer over a new Ed25519 key, and an account created by the operator with a two-of-two
+  `Authority` of the operator's key and the test signer's `publicKey`, with a balance of 1 HBAR.
+- **When** a `TransferTransaction` moving 1 tinybar from that account to the operator's account id
+  is packed with the operator as payer for two target nodes and signed with the operator account,
+  serialized with `toBytes()`, restored with `fromBytes(...)`, signed with
+  `PackedTransaction.sign(testSigner)`, and submitted.
+- **Then** the receipt status is `SUCCESS`, the restored transaction has the same `transactionId`,
+  and `nodeSignatures` holds exactly one signature per target node for each of the two keys.
+
+### `transactions/sign-signatures-rejects-invalid-signature`
+
+- **Given** a `HieroClient` connected to a solo network with a funded operator account, and two
+  `TransferTransaction`s with identical transfers, each packed with the operator as payer for the
+  same two target nodes (so their bodies differ only in the `TransactionId`).
+- **When** `NodeSignature`s computed over the `signableBodies()` of the second transaction are
+  attached to the first one with `sign(signatures)`.
+- **Then** the call fails with `invalid-signature-error`, and the first `PackedTransaction` still has
+  no `nodeSignatures`.
+
 ## Questions & Comments
 
 - **`setRegenerateTransactionId(boolean)` is intentionally NOT part of V3.** In v2 the SDK
