@@ -448,8 +448,7 @@ funded operator account"* fixture referenced below. The *test signer* is the in-
   the parameter removes both the nullable field and the error. The `BatchTransaction` container
   itself is specified in [`transactions-batch.md`](transactions-batch.md).
 
-- [@Jexsie](https://github.com/Jexsie): Points surfaced by the remote-signer PoC (AWS KMS and Vault
-  signers against this API, see the Questions & Comments of [`client.md`](client.md)):
+- Points surfaced by the remote-signer:
   - **`sign(...)` overloads differ in async-ness.** `PackedTransaction.sign(signer)` is now
     `@@async` while `sign(account)` and `sign(signatures)` are not, so the same method name returns
     a future or not depending on the argument type. Keep the overload set, or rename, e.g.
