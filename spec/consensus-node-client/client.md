@@ -173,7 +173,7 @@ KMS or HSM, which the solo platform does not provide.
 
 ## Questions & Comments
 
-- [@Jexsie](https://github.com/Jexsie): The `TransactionSigner` contract above was validated with a
+- The `TransactionSigner` contract above was validated with a
   lib that implements this API on top of the V2 JavaScript SDK, with AWS KMS and HashiCorp Vault
   signers (ported from [hiero-remote-signer](https://github.com/Jexsie/hiero-remote-signer)). Open
   points it surfaced:
